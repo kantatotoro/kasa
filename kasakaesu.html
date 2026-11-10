@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#434e5b">
+<title>傘を返す</title>
+<style>
+:root { --green:#3dbd7d; --red:#e5555a; }
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { min-height:100%; margin:0; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif; color:#fff;
+  background:linear-gradient(180deg,#434e5b 0%,#5f6c7a 28%,#74818e 62%,#7d8a97 100%); background-attachment:fixed; }
+/* 厚い雨雲 */
+body::before { content:""; position:fixed; left:-20%; right:-20%; top:0; height:48vh; z-index:0; pointer-events:none;
+  animation:drift 60s ease-in-out infinite alternate;
+  background:radial-gradient(45% 60% at 12% 0%,rgba(38,46,56,.75),transparent 70%),
+             radial-gradient(45% 55% at 82% 0%,rgba(46,54,65,.7),transparent 70%),
+             radial-gradient(40% 40% at 48% 14%,rgba(100,110,122,.45),transparent 70%),
+             radial-gradient(35% 40% at 28% 22%,rgba(90,100,112,.35),transparent 70%); }
+@keyframes drift { from { transform:translateX(-6%); } to { transform:translateX(6%); } }
+.rain { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:3; }
+.rain.back { z-index:1; }
+main { position:relative; z-index:2; max-width:560px; margin:0 auto;
+  padding:calc(env(safe-area-inset-top,0px) + 26px) 16px 90px; }
+
+/* ヒーロー（天気アプリ風） */
+.hero { text-align:center; margin-bottom:24px; text-shadow:0 1px 12px rgba(0,0,0,.25); }
+.place { font-size:30px; font-weight:400; letter-spacing:.05em; }
+.place-sub { font-size:14px; opacity:.8; margin-top:2px; }
+.big { font-size:104px; font-weight:200; line-height:1; margin-top:8px; letter-spacing:-.02em; }
+.big .unit { font-size:32px; font-weight:300; margin-left:4px; vertical-align:top; position:relative; top:12px; }
+.cond { font-size:19px; font-weight:600; margin-top:4px; }
+.hl { display:flex; justify-content:center; align-items:flex-end; gap:22px; margin-top:6px; }
+.hl span { display:flex; align-items:baseline; gap:6px; font-size:13px; font-weight:500; opacity:.95; }
+.hl b { font-size:24px; font-weight:400; }
+#timer { display:inline-block; margin-top:14px; font-size:13px; font-weight:500; padding:5px 13px; border-radius:999px;
+  background:rgba(255,255,255,.18); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); text-shadow:none; }
+#timer:empty { display:none; }
+#timer.warn { background:rgba(224,132,56,.6); }
+
+/* ガラスのカード */
+.card { position:relative; overflow:hidden; border-radius:22px; padding:14px 16px 16px; margin-bottom:14px;
+  background:rgba(115,130,146,.30); backdrop-filter:blur(18px) saturate(1.1); -webkit-backdrop-filter:blur(18px) saturate(1.1);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10), 0 8px 24px rgba(20,30,40,.16); }
+.ct { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; letter-spacing:.03em;
+  color:rgba(255,255,255,.68); margin:0 0 12px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.15); }
+.step { width:19px; height:19px; border-radius:50%; background:rgba(255,255,255,.24); color:#fff;
+  display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; }
+input { width:100%; padding:13px 14px; font-size:20px; color:#fff; border-radius:14px;
+  background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.22); }
+input::placeholder { color:rgba(255,255,255,.5); }
+input:focus { outline:none; background:rgba(255,255,255,.22); border-color:rgba(255,255,255,.65); }
+
+.legend { display:flex; gap:18px; font-size:12.5px; color:rgba(255,255,255,.8); margin-bottom:12px; }
+.legend span::before { content:""; display:inline-block; width:12px; height:12px; border-radius:4px; margin-right:6px; vertical-align:-1px; }
+.legend .g::before { background:var(--green); } .legend .r::before { background:var(--red); }
+.grid { display:grid; grid-template-columns:repeat(5,1fr); gap:9px; }
+.picker { position:relative; margin:0 -16px; outline:none; }
+.track { position:relative; display:flex; gap:4px; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory;
+  padding:16px calc(50% - 52px) 20px; scrollbar-width:none; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14%,#000 86%,transparent 100%);
+          mask-image:linear-gradient(90deg,transparent 0,#000 14%,#000 86%,transparent 100%); }
+.track::-webkit-scrollbar { display:none; }
+.pk-arrow { position:absolute; top:50%; transform:translateY(-50%); z-index:2; width:34px; height:34px; border-radius:50%; border:none;
+  background:rgba(255,255,255,.18); color:#fff; font-size:22px; line-height:1; cursor:pointer; padding:0 0 3px;
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+.pk-arrow.l { left:8px; } .pk-arrow.r { right:8px; }
+.pk-count { text-align:center; font-size:13px; font-weight:600; color:rgba(255,255,255,.85); margin-top:-4px; font-variant-numeric:tabular-nums; }
+.swipe-hint { text-align:center; font-size:11.5px; color:rgba(255,255,255,.55); margin-top:3px; }
+
+.umb { position:relative; flex:0 0 104px; scroll-snap-align:center; display:flex; flex-direction:column; align-items:center; gap:2px;
+  font-family:inherit; color:#fff; border:1px solid transparent; border-radius:22px; padding:14px 0 12px; cursor:pointer; will-change:transform;
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); transition:box-shadow .2s, border-color .2s; }
+.umb svg { width:46px; height:46px; }
+.umb .no { font-size:40px; font-weight:500; line-height:1.1; letter-spacing:.02em; }
+.umb small { font-size:12px; font-weight:600; letter-spacing:.05em; }
+.umb.free { background:linear-gradient(165deg,rgba(66,200,134,.45),rgba(40,160,100,.18)); border-color:rgba(120,235,175,.55);
+  box-shadow:0 0 18px rgba(61,189,125,.25), inset 0 1px 0 rgba(255,255,255,.25); }
+.umb.free svg { color:#8df2bd; } .umb.free small { color:#b8f7d6; }
+.umb.used { background:linear-gradient(165deg,rgba(235,90,95,.45),rgba(190,55,62,.2)); border-color:rgba(255,150,155,.55);
+  box-shadow:0 0 18px rgba(229,85,90,.22), inset 0 1px 0 rgba(255,255,255,.2); }
+.umb.used svg { color:#ffa3a7; } .umb.used small { color:#ffc7c9; }
+.umb.used .drops { animation:drip 1.1s linear infinite; }
+@keyframes drip { 0% { opacity:0; transform:translateY(-1.5px); } 40% { opacity:1; } 100% { opacity:0; transform:translateY(2px); } }
+.umb.sel { border-color:#fff; box-shadow:0 0 0 2px rgba(255,255,255,.85), 0 10px 26px rgba(15,25,35,.4); }
+
+.adm { position:fixed; inset:0; z-index:70; display:none; overflow-y:auto; padding:calc(env(safe-area-inset-top,0px) + 18px) 14px 40px;
+  background:rgba(18,26,36,.62); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+.adm.show { display:block; }
+.adm-box { max-width:560px; margin:0 auto; border-radius:26px; padding:18px 16px 12px; color:#fff;
+  background:rgba(88,102,118,.9); border:1px solid rgba(255,255,255,.22); box-shadow:0 20px 50px rgba(10,18,28,.45); }
+.adm-head { display:flex; align-items:center; justify-content:space-between; }
+.adm-title { font-size:20px; font-weight:600; }
+.adm-close { border:none; background:rgba(255,255,255,.2); color:#fff; border-radius:999px; padding:8px 14px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; }
+.adm-sub { font-size:12.5px; opacity:.78; margin:4px 0 10px; }
+.adm-note { display:none; margin:6px 0 4px; padding:10px 12px; border-radius:12px; background:rgba(52,176,112,.9); font-weight:600; font-size:14px; }
+.adm-note.show { display:block; }
+.adm-row { display:flex; align-items:center; gap:12px; padding:12px 0; border-top:1px solid rgba(255,255,255,.15); }
+.adm-no { flex:0 0 52px; height:52px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:600;
+  background:linear-gradient(165deg,rgba(235,90,95,.5),rgba(190,55,62,.25)); border:1px solid rgba(255,150,155,.5); }
+.adm-info { flex:1; min-width:0; }
+.adm-sid { font-size:20px; font-weight:600; letter-spacing:.04em; word-break:break-all; }
+.adm-time { font-size:12px; opacity:.78; margin-top:2px; }
+.adm-cancel { flex:0 0 auto; border:none; border-radius:12px; padding:11px 13px; font-size:14px; font-weight:700; color:#fff; background:rgba(226,80,85,.96); cursor:pointer; font-family:inherit; }
+.adm-cancel.sure { background:#fff; color:#c0343a; }
+.adm-empty { text-align:center; opacity:.85; padding:24px 0 14px; border-top:1px solid rgba(255,255,255,.15); }
+.adm-foot { font-size:11.5px; opacity:.6; text-align:center; padding:10px 0 4px; border-top:1px solid rgba(255,255,255,.15); }
+
+.msg { display:none; padding:13px 14px; border-radius:16px; font-weight:600; margin-bottom:14px; text-align:center; }
+.msg.ok { display:block; background:rgba(52,176,112,.92); color:#fff; }
+.msg.ng { display:block; background:rgba(226,80,85,.93); color:#fff; }
+.go { width:100%; padding:16px; font-size:18px; font-weight:700; border:none; border-radius:18px; color:#26384d; cursor:pointer;
+  background:#fff; box-shadow:0 6px 18px rgba(15,25,35,.3); }
+.go:disabled { background:rgba(255,255,255,.16); color:rgba(255,255,255,.55); box-shadow:none; cursor:default; }
+.hint { font-size:12.5px; color:rgba(255,255,255,.7); text-align:center; margin:12px 0 0; line-height:1.6; }
+.empty { opacity:.8; text-align:center; padding:8px 0; }
+#status { position:fixed; left:0; right:0; bottom:0; z-index:4; text-align:center; font-size:12px; color:rgba(255,255,255,.85);
+  padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px)); background:rgba(65,78,92,.55);
+  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-top:1px solid rgba(255,255,255,.1); }
+#status:empty { display:none; }
+#expired { position:fixed; inset:0; z-index:99; display:none; align-items:center; justify-content:center; text-align:center;
+  background:rgba(52,63,76,.95); color:#fff; padding:24px; }
+#expired.show { display:flex; }
+#expired h2 { font-size:24px; font-weight:500; margin:0 0 10px; } #expired p { opacity:.85; line-height:1.8; margin:0; }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="place">傘を返す</div>
+    <div class="place-sub">傘立てに戻してから、ここで返却してね</div>
+    <div class="big"><span id="bigNum">--</span><span class="unit">本</span></div>
+    <div class="cond">使用中の傘</div>
+    <div class="hl"><span>空き <b id="freeN">-</b></span><span>全部 <b id="allN"></b></span></div>
+  </header>
+
+  <div class="card">
+    <label class="ct" for="sid"><span class="step">1</span>学籍番号（借りたときと同じ）</label>
+    <input id="sid" inputmode="numeric" autocomplete="off" placeholder="例：10101">
+  </div>
+  <div class="card">
+    <div class="ct"><span class="step">2</span>返す傘の番号を選ぶ</div>
+    <div id="pickBox">
+      <div class="picker" id="picker">
+        <button class="pk-arrow l" type="button" aria-label="前の傘">‹</button>
+        <div class="track" id="track"></div>
+        <button class="pk-arrow r" type="button" aria-label="次の傘">›</button>
+      </div>
+      <div class="pk-count" id="pkCount"></div>
+      <div class="swipe-hint">◀ 左右にスワイプして選ぶ ▶</div>
+    </div>
+    <div id="none" class="empty" style="display:none">使用中の傘はありません</div>
+  </div>
+
+  <div id="msg" class="msg"></div>
+  <button id="go" class="go" disabled>番号を選んでください</button>
+  <div id="status"></div>
+</main>
+<div id="adm" class="adm" role="dialog" aria-modal="true">
+    <div class="adm-box">
+      <div class="adm-head"><div class="adm-title">🔧 管理者</div><button type="button" class="adm-close" id="admClose">閉じる</button></div>
+      <div class="adm-sub" id="admSub"></div>
+      <div class="adm-note" id="admNote"></div>
+      <div id="admList"></div>
+      <div class="adm-foot">取り消すと、その傘は「空き」に戻ります</div>
+    </div>
+  </div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+// ====== 設定 ======
+const UMBRELLA_COUNT = 30;   // 傘の本数
+const firebaseConfig = {
+  apiKey: "AIzaSyBsdOnQVkgzjKM78V-MmTOxw2yUNW6Obt4",
+  authDomain: "kasa-ab61a.firebaseapp.com",
+  databaseURL: "https://kasa-ab61a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "kasa-ab61a",
+  storageBucket: "kasa-ab61a.firebasestorage.app",
+  messagingSenderId: "229940351059",
+  appId: "1:229940351059:web:6c267e0fb06e338c36f6a6",
+  measurementId: "G-FN2N3QKB7R"
+};
+// ==================
+
+const $ = id => document.getElementById(id);
+const store = (() => {
+  try { localStorage.setItem("_t", "1"); localStorage.removeItem("_t"); return localStorage; }
+  catch (e) { const m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, removeItem: k => { delete m[k]; } }; }
+})();
+const DEMO = firebaseConfig.apiKey === "YOUR_API_KEY";
+let state = {};
+
+// 雨：奥行き2枚のキャンバス（遠い雨はカードの後ろ＝ガラス越しにぼける／近い雨は手前）
+//     雨脚の強弱・風の揺らぎ・箱で跳ねるしぶき・波紋・稲光
+(function () {
+  const mkCanvas = cls => { const c = document.createElement("canvas"); c.className = cls; document.body.appendChild(c); return c; };
+  const back = mkCanvas("rain back"), front = mkCanvas("rain");
+  const bctx = back.getContext("2d"), fctx = front.getContext("2d");
+  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let W, H;
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    [[back, bctx], [front, fctx]].forEach(([c, x]) => { c.width = W * dpr; c.height = H * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0); });
+  }
+  resize(); addEventListener("resize", resize);
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  let I = 1;   // 雨の強さ（0.5〜1 をゆっくり行き来する）
+
+  // hit = 箱の上辺を横切ったときに跳ねる確率（遠い雨は手前の箱に当たらない）
+  const LAYERS = [
+    { ctx: bctx, share: 0.38, len: [8, 16],  sp: [9, 13],  w: 0.7, a: 0.24, hit: 0 },
+    { ctx: fctx, share: 0.34, len: [16, 28], sp: [14, 20], w: 1.0, a: 0.36, hit: 0.10 },
+    { ctx: fctx, share: 0.28, len: [28, 46], sp: [20, 29], w: 1.6, a: 0.52, hit: 0.22 }
+  ];
+  const total = calm ? 100 : Math.min(400, Math.floor(W / 2.4) + 130);
+  const mk = (L, init) => ({
+    x: rnd(-80, W + 320), y: init ? rnd(0, H) : rnd(-60, -5) - (1 - I) * rnd(0, 1100),
+    k: rnd(0.85, 1.15), len: rnd(...L.len), sp: rnd(...L.sp)
+  });
+  const layers = LAYERS.map(L => ({ L, drops: Array.from({ length: Math.round(total * L.share) }, () => mk(L, true)) }));
+
+  const parts = [], ripples = [];
+  let flash = 0, flashX = W / 2;
+
+  if (!calm) (function bolt() {
+    setTimeout(() => {
+      flashX = rnd(W * 0.15, W * 0.85); flash = 1;
+      setTimeout(() => { flash = 0.35; }, 90);
+      setTimeout(() => { flash = 0.9; }, 170);
+      bolt();
+    }, 7000 + Math.random() * 10000);
+  })();
+
+  function scan() {
+    const boxes = [], cards = [];
+    document.querySelectorAll(".card,.go,input,.umb").forEach(e => {
+      const r = e.getBoundingClientRect();
+      if (!(r.width > 0 && r.bottom > 0 && r.top < H)) return;
+      if (e.classList.contains("card")) cards.push({ e, r });
+      if (r.top > -50) boxes.push({ l: r.left + 3, r: r.right - 3, t: r.top, k: e.classList.contains("umb") ? 1.5 : 1 });
+    });
+    return { boxes, cards };
+  }
+
+  function splash(x, y, power) {
+    if (parts.length > 360) return;
+    const n = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++)
+      parts.push({ x, y, vx: rnd(-1.6, 1.6) * power, vy: -rnd(1.2, 3.6) * power, r: rnd(0.7, 1.6), life: rnd(16, 32), max: 32 });
+    ripples.push({ x, y, r: 1, max: rnd(7, 14), a: 0.55, flat: 0.28 });
+  }
+
+  let t = 0;
+  (function frame() {
+    t += 0.01;
+    I = Math.max(0.5, Math.min(1, 0.8 + 0.2 * Math.sin(t * 0.35) + 0.08 * Math.sin(t * 0.91 + 1)));
+    const WIND = -0.22 + Math.sin(t * 0.7) * 0.08 + Math.sin(t * 0.23) * 0.05 + Math.sin(t * 2.3) * 0.02;
+    bctx.clearRect(0, 0, W, H); fctx.clearRect(0, 0, W, H);
+    const { boxes, cards } = scan();
+
+    for (const { L, drops } of layers) {
+      const ctx = L.ctx;
+      ctx.strokeStyle = "rgba(200,222,248," + (L.a * (0.75 + 0.25 * I)).toFixed(3) + ")";
+      ctx.lineWidth = L.w; ctx.lineCap = "round";
+      ctx.beginPath();
+      for (const d of drops) {
+        const py = d.y, dx = WIND * d.k;
+        ctx.moveTo(d.x, d.y); ctx.lineTo(d.x + d.len * dx, d.y - d.len);
+        d.y += d.sp; d.x += d.sp * dx;
+        let dead = false;
+        if (L.hit && d.y > 0) for (const b of boxes) {
+          if (py < b.t && d.y >= b.t && d.x > b.l && d.x < b.r && Math.random() < L.hit * b.k) { splash(d.x, b.t, 0.6 + L.w * 0.4); dead = true; break; }
+        }
+        if (!dead && d.y > H + 10) {
+          if (L.hit && Math.random() < 0.5 && ripples.length < 50)
+            ripples.push({ x: d.x, y: H - 6 - Math.random() * 40, r: 1, max: rnd(10, 22), a: 0.45, flat: 0.3 });
+          dead = true;
+        }
+        if (dead) Object.assign(d, mk(L, false));
+      }
+      ctx.stroke();
+    }
+
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const r = ripples[i];
+      fctx.strokeStyle = "rgba(210,230,255," + r.a + ")"; fctx.lineWidth = 1;
+      fctx.beginPath(); fctx.ellipse(r.x, r.y, r.r, r.r * r.flat, 0, 0, Math.PI * 2); fctx.stroke();
+      r.r += 0.45; r.a -= 0.5 / (r.max / 0.45);
+      if (r.r > r.max || r.a <= 0) ripples.splice(i, 1);
+    }
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.x += p.vx; p.y += p.vy; p.vy += 0.22; p.life--;
+      if (p.life <= 0) { parts.splice(i, 1); continue; }
+      fctx.fillStyle = "rgba(225,238,255," + (0.8 * p.life / p.max) + ")";
+      fctx.beginPath(); fctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); fctx.fill();
+    }
+    if (flash > 0.02) {                                        // 稲光：雲のあたりが強く光る
+      const g = fctx.createRadialGradient(flashX, 0, 0, flashX, 0, H * 0.95);
+      g.addColorStop(0, "rgba(235,242,255," + (flash * 0.55) + ")"); g.addColorStop(1, "rgba(235,242,255,0)");
+      fctx.fillStyle = g; fctx.fillRect(0, 0, W, H);
+      fctx.fillStyle = "rgba(225,235,255," + (flash * 0.07) + ")"; fctx.fillRect(0, 0, W, H);
+      flash *= 0.9;
+    }
+    requestAnimationFrame(frame);
+  })();
+})();
+
+function showMsg(t, ok) { const m = $("msg"); m.textContent = t; m.className = "msg " + (ok ? "ok" : "ng"); }
+
+// ---- データ層 ----
+let subscribe, borrow, giveBack, createAndReadSession, readSession, serverNow;
+const rid = () => Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+
+if (DEMO) {
+  $("status").textContent = "⚠ お試しモード（Firebase未設定。この端末のブラウザ内だけで動作）";
+  const K = "umb_demo";
+  const load = () => JSON.parse(store.getItem(K) || "{}");
+  const save = s => store.setItem(K, JSON.stringify(s));
+  subscribe = cb => { state = load(); cb(); window.addEventListener("storage", () => { state = load(); cb(); }); };
+  borrow = async (n, sid) => {
+    const s = load(); if (s[n]) return "taken";
+    const d = Object.keys(s).find(k => s[k].studentId === sid); if (d) return "dup:" + d;     // 同じ学籍番号で2本目は不可
+    s[n] = { studentId: sid, time: Date.now() }; save(s); state = s; return "ok";
+  };
+  giveBack = async (n, sid) => { const s = load(); if (!s[n] || s[n].studentId !== sid) return false; delete s[n]; save(s); state = s; return true; };
+  serverNow = () => Date.now();
+  createAndReadSession = async id => { store.setItem("umb_s_" + id, Date.now()); return +store.getItem("umb_s_" + id); };
+  readSession = async id => { const v = store.getItem("umb_s_" + id); return v ? +v : null; };
+} else {
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  let offset = 0;
+  db.ref(".info/serverTimeOffset").on("value", s => offset = s.val() || 0);
+  serverNow = () => Date.now() + offset;
+  const ref = n => db.ref("umbrellas/" + n);
+  subscribe = cb => db.ref("umbrellas").on("value",
+    s => { state = s.val() || {}; cb(); $("status").textContent = "🟢 リアルタイム同期中"; },
+    () => { $("status").textContent = "🔴 データベースに接続できません（設定とルールを確認）"; });
+  borrow = async (n, sid) => {
+    let res = "ok";
+    const r = await db.ref("umbrellas").transaction(cur => {                                // 全体を1つの取引にして、同時に借りても二重にならない
+      cur = cur || {};
+      if (cur[n]) { res = "taken"; return; }
+      const d = Object.keys(cur).find(k => cur[k] && cur[k].studentId === sid);
+      if (d) { res = "dup:" + d; return; }                                                 // 同じ学籍番号で2本目は不可
+      res = "ok"; cur[n] = { studentId: sid, time: firebase.database.ServerValue.TIMESTAMP }; return cur;
+    });
+    return r.committed ? "ok" : res;
+  };
+  giveBack = async (n, sid) => (await ref(n).transaction(c => (c && c.studentId === sid) ? null : undefined)).committed;
+  createAndReadSession = async id => {
+    const r = db.ref("sessions/" + id);
+    await r.set(firebase.database.ServerValue.TIMESTAMP);
+    return (await r.once("value")).val();
+  };
+  readSession = async id => (await db.ref("sessions/" + id).once("value")).val();
+}
+
+
+</script>
+<script>
+// 空き＝傘立てにある「閉じた傘」／使用中＝雨の中で「開いた傘」
+const CLOSED = "M19.9 1.6L4.2 14.7C5.6 14.4 7 15.6 7.5 17.6C9 17 11 18.6 12.3 20.2C13.8 19.2 15.4 20.3 16.4 21.9Z";
+const OPEN = "M12 3.5C7 3.5 3.3 7.2 2.8 12c.9-.8 2-1.2 3.1-1.2 1.2 0 2.2.5 3 1.3.8-.8 1.9-1.3 3.1-1.3s2.3.5 3.1 1.3c.8-.8 1.8-1.3 3-1.3 1.1 0 2.2.4 3.1 1.2C20.7 7.2 17 3.5 12 3.5z";
+function umbHTML(n, used) {
+  const svg = used
+    ? '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round">' +
+        '<g class="drops" fill="none" stroke-width="1.4" stroke-linecap="round"><path d="M5 .8l-.8 2.2M12 .2l-.8 2.2M19 .8l-.8 2.2"/></g>' +
+        '<g transform="translate(1.2 3.6) scale(.9)"><path d="' + OPEN + '"/><path d="M12 12v6a2 2 0 0 1-4 0" fill="none" stroke-width="1.7" stroke-linecap="round"/></g></svg>'
+    : '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round">' +
+        '<path d="' + CLOSED + '"/><path d="M9.4 18.8L8.4 20.9C7.6 22.3 5.4 22.4 4.6 21C4.2 20.3 4.3 19.6 4.7 19.1" fill="none" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  return svg + '<span class="no">' + n + '</span><small>' + (used ? "使用中" : "空き") + '</small>';
+}
+
+// 左右スワイプで番号を選ぶピッカー（中央に来た傘が選択中）
+function makePicker(onChange) {
+  const root = $("picker"), track = $("track"), cnt = $("pkCount");
+  let items = [], key = "", current = null, raf = 0;
+  const api = { touched: false, get current() { return current; } };
+  root.setAttribute("tabindex", "0");
+  ["pointerdown", "touchstart", "wheel", "keydown"].forEach(ev => root.addEventListener(ev, () => { api.touched = true; }, { passive: true }));
+
+  const mid = el => el.offsetLeft + el.offsetWidth / 2;
+  const paint = it => { it.el.className = "umb " + (it.used ? "used" : "free"); it.el.innerHTML = umbHTML(it.n, it.used); };
+
+  function update() {
+    raf = 0;
+    if (!items.length) { if (current !== null) { current = null; onChange(null); } cnt.textContent = ""; return; }
+    const c = track.scrollLeft + track.clientWidth / 2;
+    let best = 0, bd = 1e9;
+    items.forEach((it, i) => {
+      const d = Math.abs(mid(it.el) - c);
+      if (d < bd) { bd = d; best = i; }
+      const r = d / 108;                                  // 中央から離れるほど小さく・薄く
+      it.el.style.transform = "scale(" + Math.max(0.68, 1 - r * 0.17).toFixed(3) + ")";
+      it.el.style.opacity = Math.max(0.35, 1 - r * 0.3).toFixed(2);
+    });
+    items.forEach((it, i) => it.el.classList.toggle("sel", i === best));
+    cnt.textContent = (best + 1) + " / " + items.length;
+    const n = items[best].n;
+    if (n !== current) { current = n; try { navigator.vibrate && navigator.vibrate(6); } catch (e) {} onChange(n); }
+  }
+  const schedule = () => { if (!raf) raf = requestAnimationFrame(update); };
+  track.addEventListener("scroll", schedule, { passive: true });
+  addEventListener("resize", schedule);
+
+  function goTo(n, smooth) {
+    const it = items.find(x => x.n === n); if (!it) return;
+    track.scrollTo({ left: mid(it.el) - track.clientWidth / 2, behavior: smooth ? "smooth" : "auto" });
+    schedule();
+  }
+  function step(d) {
+    const i = items.findIndex(x => x.n === current);
+    const j = Math.min(items.length - 1, Math.max(0, i + d));
+    if (items[j]) goTo(items[j].n, true);
+  }
+  root.querySelector(".l").addEventListener("click", () => { api.touched = true; step(-1); });
+  root.querySelector(".r").addEventListener("click", () => { api.touched = true; step(1); });
+  root.addEventListener("keydown", e => { if (e.key === "ArrowLeft") step(-1); if (e.key === "ArrowRight") step(1); });
+
+  api.goTo = goTo;
+  api.setItems = function (list) {
+    const k = list.map(x => x.n).join(",");
+    if (k === key) {                                      // 並びが同じなら色・表示だけ更新（スクロール位置は保つ）
+      list.forEach((x, i) => { if (items[i].used !== x.used) { items[i].used = x.used; paint(items[i]); } });
+      schedule(); return;
+    }
+    const prev = current; key = k; track.innerHTML = "";
+    items = list.map(x => {
+      const it = { n: x.n, used: x.used, el: document.createElement("button") };
+      it.el.type = "button";
+      it.el.addEventListener("click", () => { api.touched = true; goTo(it.n, true); });
+      paint(it); track.appendChild(it.el); return it;
+    });
+    current = null;
+    requestAnimationFrame(() => { if (items.length) goTo(items.some(i => i.n === prev) ? prev : items[0].n, false); update(); });
+    if (!items.length) update();
+  };
+  return api;
+}
+
+let selected = null, expired = false;
+
+let keepMsg = false;   // 返却直後は、リストが入れ替わってもメッセージを残す
+const picker = makePicker(n => { selected = n; if (keepMsg) keepMsg = false; else $("msg").className = "msg"; updateBtn(); });
+
+function updateBtn() {
+  const btn = $("go");
+  btn.disabled = expired || selected === null || !state[selected];
+  btn.textContent = selected === null ? "番号を選んでください" : selected + "番を返却する";
+}
+
+function render() {
+  let usedN = 0; const list = [];
+  for (let k = 1; k <= UMBRELLA_COUNT; k++) if (state[k]) { usedN++; list.push({ n: k, used: true }); }
+  $("bigNum").textContent = usedN; $("freeN").textContent = UMBRELLA_COUNT - usedN; $("allN").textContent = UMBRELLA_COUNT;
+  $("pickBox").style.display = list.length ? "" : "none";
+  $("none").style.display = list.length ? "none" : "block";
+  picker.setItems(list);
+  updateBtn();
+}
+
+$("go").addEventListener("click", async () => {
+  const sid = $("sid").value.trim();
+  if (!sid) return showMsg("学籍番号を入力してください", false);
+  if (selected === null || expired) return;
+  const n = selected;
+  if (!state[n]) return;
+  if (await giveBack(n, sid)) { keepMsg = true; showMsg(n + "番を返却しました。ありがとう！", true); }
+  else showMsg("学籍番号が借りた人と一致しません", false);
+  render();
+});
+
+// ---- 管理者モード：学籍番号欄に管理者コードを入力すると開く ----
+const ADMIN_CODE = "123456789";     // ← 管理者コード（変更はここ）
+let armed = null, armTimer = 0, noteTimer = 0;
+
+function fmtTime(t) {
+  if (!t) return "時刻不明";
+  const d = new Date(t), p = x => String(x).padStart(2, "0");
+  const m = Math.max(0, Math.floor((serverNow() - t) / 60000));
+  const ago = m < 1 ? "たった今" : m < 60 ? m + "分前" : Math.floor(m / 60) + "時間" + (m % 60) + "分前";
+  return (d.getMonth() + 1) + "/" + d.getDate() + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + "（" + ago + "）";
+}
+function admNote(text) {
+  const el = $("admNote"); el.textContent = text; el.classList.add("show");
+  clearTimeout(noteTimer); noteTimer = setTimeout(() => el.classList.remove("show"), 3500);
+}
+function renderAdmin() {
+  const box = $("adm");
+  if (!box.classList.contains("show")) return;
+  const list = $("admList"); list.innerHTML = "";
+  let count = 0;
+  for (let n = 1; n <= UMBRELLA_COUNT; n++) {
+    const rec = state[n]; if (!rec) continue;
+    count++;
+    const row = document.createElement("div"); row.className = "adm-row";
+    const no = document.createElement("div"); no.className = "adm-no"; no.textContent = n;
+    const info = document.createElement("div"); info.className = "adm-info";
+    const sid = document.createElement("div"); sid.className = "adm-sid"; sid.textContent = "学籍番号 " + rec.studentId;   // textContentでHTMLとして解釈させない
+    const tm = document.createElement("div"); tm.className = "adm-time"; tm.textContent = fmtTime(rec.time);
+    info.append(sid, tm);
+    const b = document.createElement("button"); b.type = "button";
+    b.className = "adm-cancel" + (armed === n ? " sure" : "");
+    b.textContent = armed === n ? "本当に取り消す？" : "取り消し";
+    b.addEventListener("click", () => {
+      if (armed !== n) {                                   // 1回目：確認状態に（4秒で元に戻る）
+        armed = n; clearTimeout(armTimer); armTimer = setTimeout(() => { armed = null; renderAdmin(); }, 4000);
+        renderAdmin(); return;
+      }
+      armed = null; clearTimeout(armTimer);
+      const r = state[n]; if (!r) return renderAdmin();
+      giveBack(n, r.studentId).then(ok => {
+        admNote(ok ? n + "番（学籍番号 " + r.studentId + "）の貸し出しを取り消しました" : "取り消せませんでした。もう一度お試しください");
+        render();
+      });
+    });
+    row.append(no, info, b); list.appendChild(row);
+  }
+  if (!count) { const e = document.createElement("div"); e.className = "adm-empty"; e.textContent = "使用中の傘はありません"; list.appendChild(e); }
+  $("admSub").textContent = "使用中 " + count + "本 ／ 全部 " + UMBRELLA_COUNT + "本";
+}
+function openAdmin() { armed = null; $("adm").classList.add("show"); renderAdmin(); }
+function closeAdmin() { $("adm").classList.remove("show"); armed = null; }
+
+$("sid").addEventListener("input", () => {
+  if ($("sid").value.trim() === ADMIN_CODE) { $("sid").value = ""; $("sid").blur(); openAdmin(); }
+});
+$("admClose").addEventListener("click", closeAdmin);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeAdmin(); });
+setInterval(renderAdmin, 30000);                           // 「◯分前」の表示を更新
+
+const baseRender = render;                                  // 状態が変わるたびに管理者画面も更新
+render = function () { baseRender(); renderAdmin(); };
+
+render();
+subscribe(render);
+</script>
+</body>
+</html>
